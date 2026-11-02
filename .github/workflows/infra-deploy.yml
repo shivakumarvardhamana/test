@@ -1,0 +1,63 @@
+
+name: GCP Terraform Deployment
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  terraform:
+    name: Deploy GCP Infrastructure
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      TF_IN_AUTOMATION: true
+      TF_INPUT: false
+
+    steps:
+
+      # 1. Checkout GitHub repository
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # 2. Authenticate with GCP using Workload Identity Federation
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/745056555198/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+
+          service_account: github-terraform-sa@project-7b1ae16d-2c66-4448-837.iam.gserviceaccount.com
+
+          create_credentials_file: true
+
+      # 3. Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # 4. Terraform initialization
+      - name: Terraform Init
+        run: terraform init
+
+      # 5. Terraform formatting check
+      - name: Terraform Format
+        run: terraform fmt -check -recursive
+
+      # 6. Terraform validation
+      - name: Terraform Validate
+        run: terraform validate
+
+      # 7. Terraform Plan
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+
+      # 8. Terraform Apply
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve tfplan
